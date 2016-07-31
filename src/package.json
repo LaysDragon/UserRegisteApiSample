@@ -2,6 +2,7 @@
 	"name":"UserRegisteApiSample",
 	"version":"0.0.1",
 	"dependencies":{
-		"express":"4.14.0"
+		"express":"4.14.0",
+		"mysql":"2.11.1"
 	}
 }
