@@ -62,7 +62,13 @@ simple_post(loginData,'/login')
 	logger('返回結果: ' + result)
 	
 	//創造使用者
-	return simple_post({token:token,userid:'laysDragon',passwords:'233',name:'2233ssdsis a person',age:20},'/createUser');
+	//return simple_post({token:token,userid:'laysDragon-2',passwords:'233',name:'2233ssdsis a person',age:20},'/createUser');
+})
+.then(function(result){
+	logger('返回結果: ' + result)
+	
+	//刪除使用者
+	return simple_post({token:token,userid:'233ee'},'/deleteUser');
 })
 .then(function(result){
 	logger('返回結果: ' + result)

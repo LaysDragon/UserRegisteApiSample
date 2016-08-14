@@ -2,19 +2,32 @@
 var bodyParser = require ('body-parser')
 var common = require ('./comminFunctions');
 var UM = require ('./UserManager');
-
-UserManager = UM.UserManager();
-
-//==初始化 UserDB(mysql)
-UserManager.connectUserDB({
+//設定區
+var mysql_connect_config = {
     host: '127.0.0.1',
     user: 'root',
     password: '',
     database: 'usersample'
-});
+}
+
+var mongodb_connect_config = {
+    host: 'localhost',
+    port: '27017',
+    database: 'usersample'
+}
+
+var config = {
+	//Token有效時長(秒)
+	TokenExpiration:10
+}
+
+UserManager = UM.UserManager();
+
+//==初始化 UserDB(mysql)
+UserManager.connectUserDB(mysql_connect_config);
 
 //==初始化 TokenDB(mongodb)
-UserManager.connectTokenDB('localhost',27017,'usersample')
+UserManager.connectTokenDB(mongodb_connect_config.host,mongodb_connect_config.port,mongodb_connect_config.database)
 .then(function(db){
 	logger("成功連接至MongoDB!!");
 });
@@ -26,7 +39,7 @@ var express = require('express');
 //====主程式開始====
 //服務器配置
 //Token有效時長(秒)
-UserManager.setTokenExpiration(10);
+UserManager.setTokenExpiration(config.TokenExpiration);
 
 var app_server = express();
 app_server.use(bodyParser.json());
@@ -50,7 +63,7 @@ var logger = common.getLogger("Server");
 app_server.post('/login',function(req, res){
 	var logger = common.getLogger('/login');
 	
-	logger('[/login]收到資料:'+JSON.stringify(req.body));
+	logger('收到資料:'+JSON.stringify(req.body));
 	var userid = req.body.data.userid
 	var userpasswords = req.body.data.passwords
 	//檢查帳密是否為空
@@ -167,7 +180,7 @@ app_server.post('/createUser',function(req, res){
 		.then(function(result){
 			logger('創建成功!')
 			console.dir(result.rows);
-		res.send(common.dataPacketGenetor("OK",{message:'創建成功',data:req.body.data}));
+		res.send(common.dataPacketGenetor("OK",{message:'創建成功!',data:req.body.data}));
 			
 		}).catch(function(error){
 			logger(error);
@@ -181,9 +194,31 @@ app_server.post('/createUser',function(req, res){
 
 });
 
+//刪除使用者
+//格式:token,userid
 app_server.post('/deleteUser',function(req, res){
-	res.send('deleteUser');
+	var logger = common.getLogger('/deleteUser');
+	
+	logger('收到資料:'+JSON.stringify(req.body));
+	
+	//檢查token
+	UserManager.checkToken(req.body.data.token)
+	.then(function(result){
+		//token有效
+		UserManager.deleteUser(common.objClone(req.body).data.userid)
+		.then(function(result){
+			logger('刪除成功');
+			console.dir(result.rows);
+			res.send(common.dataPacketGenetor("OK",{message:'使用者刪除成功!',data:{userid:req.body.data.userid}}));
+		}).catch(function(error){
+			logger(error);
+			res.send(common.errorGenerator(error,error));
+		});
 
+	}).catch(function(error){
+			logger(error);
+			res.send(common.errorGenerator(error,error));
+	});
 });
 
 app_server.post('/updatePassword',function(req, res){

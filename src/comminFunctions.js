@@ -12,6 +12,9 @@ cm.errorGenerator = function (message,detail,type){
 	data.type = type || "DEFAULT";
 	data.message = message || "";
 	data.detail = detail || {};
+	
+	data.message = data.message instanceof Error ? data.message.message:data.message;
+	
 	return cm.dataPacketGenetor("ERROR",data);
 }
 
@@ -19,12 +22,28 @@ cm.errorGenerator = function (message,detail,type){
 //state:ERROR,OK
 //data:必須為json物件或著JSON字串
 cm.dataPacketGenetor = function (state,data){
+	//為了能stringify Error物件，從網路上找到的解法函式
+	function replaceErrors(key, value) {
+    if (value instanceof Error) {
+        var error = {};
+
+        Object.getOwnPropertyNames(value).forEach(function (key) {
+            error[key] = value[key];
+        });
+
+        return error;
+    }
+
+    return value;
+}
+	
+	
 	var packet = {};
 	packet.state = state;
 	
 	if(typeof data == "steing")data = JSON.parse(data);
 	packet.data = data;
-	return JSON.stringify(packet);
+	return JSON.stringify(packet,replaceErrors);
 }
 
 //取得logger
@@ -32,7 +51,7 @@ cm.getLogger = function(obj){
 	//console.log('getLogger:'+typeof obj);
 	var title = typeof obj == "string"?obj:obj.name;
 	return function(message){
-		console.log('['+title+']'+message);
+		console.log('['+title+']'+(obj instanceof Error?'[錯誤]':'')+message);
 		//this.dir=console.dir;
 	}
 }

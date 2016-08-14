@@ -20,6 +20,8 @@ function UserManager(){
 	
 	var TokenExpiration = 0;
 	
+	var defaultAdminUser =['test'];
+		
 	
 	
 	//==初始化 mongodb
@@ -60,17 +62,42 @@ function UserManager(){
 	}.bind(this);
 	
 	//===mysql相關===
+	//包裝成Promise的mysqlQuerry
+	var mysql_promise = {
+		query:function(query){
+			var logger = cm.getLogger('mysql_promise.query');
+
+			return new Promise(function(resolve,reject){
+				mysql_connection.query(query,function(err,rows,firlds){
+					//logger('633')
+					if (err) {
+						//logger(err)
+						reject(err);
+						return;
+					};
+					//console.dir({rows:rows,firlds:firlds});
+					resolve({rows:rows,firlds:firlds});
+				});
+			});
+		}
+		
+	};
+	
 	
 	//取得使用者資料
 	//返回{rows:rows,firlds:firlds}
 	this.getUserInfo = function(userid){
-		return new Promise(function(resolve,reject){
-			query = 'SELECT * FROM user WHERE userid = "'+userid+' "';
-			mysql_connection.query(query,function(err,rows,firlds){
+		var logger = cm.getLogger('UserManager.getUserInfo');
+		
+		//return new Promise(function(resolve,reject){
+			var query = 'SELECT * FROM user WHERE userid = "'+userid+' "';
+			return mysql_promise.query(query);
+			
+			/* mysql_connection.query(query,function(err,rows,firlds){
 				if (err) reject(err);
 				resolve({rows:rows,firlds:firlds});
-			});
-		});
+			}); */
+		//});
 	}.bind(this);
 	
 	//創建使用者
@@ -101,14 +128,21 @@ function UserManager(){
 				//確定無重複使用者，進行添加
 				logger("確定無重複使用者，進行添加");
 				data.passwords = common.encryptPassword(data.passwords,data.userid);
-				query = 'INSERT INTO user (userid,passwords,name,age) VALUES (\''+data.userid+'\',\''+data.passwords+'\',\''+data.name+'\',\''+data.age+'\')';
-				mysql_connection.query(query,function(err,rows,firlds){
+				var query = 'INSERT INTO user (userid,passwords,name,age) VALUES (\''+data.userid+'\',\''+data.passwords+'\',\''+data.name+'\',\''+data.age+'\')';
+				mysql_promise.query(query)
+				.then(function(result){
+					resolve(result);
+				}).catch(function(error){
+					reject(error);
+				});
+				
+				/* mysql_connection.query(query,function(err,rows,firlds){
 					if (err){ 
 						reject(err)
 						return;
 					};
 					resolve({rows:rows,firlds:firlds});
-				});
+				}); */
 			
 			}).catch(function(error){
 				reject(error);
@@ -119,6 +153,65 @@ function UserManager(){
 		
 		
 	}
+	
+	
+	
+	this.deleteUser = function(userid){
+		var logger = cm.getLogger('UserManager.deleteUser');
+		
+		return new Promise(function(resolve,reject){
+			//檢查是否為預設使用者
+			logger('檢查是否為預設使用者');
+			if(defaultAdminUser.indexOf(userid)>=0){
+				reject(new Error('預設使用者無法刪除!!!'))
+				return ;
+			};
+			logger('非預設使用者，可以刪除');
+			//檢查是否有此使用者
+			this.getUserInfo(userid)
+			.then(function(result){
+				if(result.rows.length!=0){
+					logger('有此使用者!');
+					console.dir(result.rows);
+					return userid;
+				}
+				//查無此使用者
+				reject(new Error('查無此使用者'));
+				return Promise.reject(new Error('查無此使用者'));
+			}).then(function(value){
+				
+				//有就送出刪除querry
+				var query = 'DELETE FROM user WHERE userid = \''+userid+'\'';
+				logger('送出刪除querry:'+query);
+				
+				mysql_promise.query(query)
+				.then(function(result){
+					logger('刪除成功');
+					resolve(result);
+				}).catch(function(error){
+					logger(error);
+					reject(error)
+				});
+				
+				//順便清除token
+				this.getUserToken(userid)
+				.then(function(result){
+					return this.deleteToken(result);
+					
+				}.bind(this))
+				.then(function(result){
+					logger('順便清除token完畢');
+				}).catch(function(result){
+					logger(error);
+				});
+			}.bind(this))
+			.catch(function(error){
+				logger(error);
+				reject(error);
+			});
+		}.bind(this));
+		
+	}.bind(this);
 	//===mysql相關結束===
 	
 	//設置Token有效期限
