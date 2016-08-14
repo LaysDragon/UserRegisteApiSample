@@ -1,5 +1,7 @@
 var http = require('http');
 var common = require ('./comminFunctions');
+//var readline = require('readline')
+
 
 var logger = common.getLogger('Client');
 
@@ -49,6 +51,9 @@ loginData.userid="test";
 loginData.passwords="test";
 
 var token;
+//看要測試什麼就把不要測試的註解掉
+
+
 //登入
 simple_post(loginData,'/login')
 .then(function(result){
@@ -62,7 +67,7 @@ simple_post(loginData,'/login')
 	logger('返回結果: ' + result)
 	
 	//創造使用者
-	//return simple_post({token:token,userid:'laysDragon-2',passwords:'233',name:'2233ssdsis a person',age:20},'/createUser');
+	return simple_post({token:token,userid:'laysDragon-2',passwords:'233',name:'2233ssdsis a person',age:20},'/createUser');
 })
 .then(function(result){
 	logger('返回結果: ' + result)
@@ -79,6 +84,48 @@ simple_post(loginData,'/login')
 });
 
 
+/* var stdin = process.openStdin();
+
+var menu = {
+	print:function menu(){
+		console.log('選項:');
+		console.log('1.login');
+		console.log('2.logout');
+		console.log('3.createUser');
+		console.log('4.deleteUser');
+	},
+	options:[
+		function(input){
+			simple_post(loginData,'/login')
+			.then(function(result){
+				logger('返回結果: ' + result)
+				token = JSON.parse(result).data.token;
+
+				//登出
+				//return simple_post({token:token},'/logout');
+			})
+		},
+		function(input){
+			
+		},
+		function(input){
+			
+		},
+		function(input){
+			
+		},
+	]
+}
+
+stdin.addListener("data", function(input) {
+    // note:  d is an object, and when converted to a string it will
+    // end with a linefeed.  so we (rather crudely) account for that  
+    // with toString() and then trim() 
+    console.log("you entered: [" + 
+        d.toString().trim() + "]");
+		
+		input
+ }); */
 
 
 
