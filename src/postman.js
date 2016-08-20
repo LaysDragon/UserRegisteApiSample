@@ -57,27 +57,37 @@ var token;
 //登入
 simple_post(loginData,'/login')
 .then(function(result){
-	logger('返回結果: ' + result)
+	logger('登入 返回結果: ' + result)
 	token = JSON.parse(result).data.token;
 
 	//登出
 	//return simple_post({token:token},'/logout');
 })
 .then(function(result){
-	logger('返回結果: ' + result)
+	logger('登出 返回結果: ' + result)
 	
 	//創造使用者
-	return simple_post({token:token,userid:'laysDragon-2',passwords:'233',name:'2233ssdsis a person',age:20},'/createUser');
+	//return simple_post({token:token,userid:'laysDragon-2',passwords:'233',name:'2233ssdsis a person',age:20},'/createUser');
 })
 .then(function(result){
-	logger('返回結果: ' + result)
+	logger('創造使用者 返回結果: ' + result)
 	
 	//刪除使用者
-	return simple_post({token:token,userid:'233ee'},'/deleteUser');
+	//return simple_post({token:token,userid:'233ee'},'/deleteUser');
 })
 .then(function(result){
-	logger('返回結果: ' + result)
+	logger('刪除使用者 返回結果: ' + result)
+	
+	//密碼更新
+	//return simple_post({token:token,userid:'test',old_password:'233',new_password:'test'},'/updatePasswords');
+	
 })
+.then(function(result){
+	logger('密碼更新 返回結果: ' + result)
+	
+	
+})
+
 //錯誤總捕捉
 .catch(function(error){
 	logger('錯誤:'+error);

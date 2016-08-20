@@ -70,6 +70,7 @@ cm.comparePassword= function(passwords,encryptedpasswords,userid){
 
 //取得使用者的鹽
 cm.getUserSalt= function(userid){
+	//cm.getLogger('cm.getUserSalt')('取得使用者['+userid+']的鹽');
 	var md5 = crypto.createHash('md5');
 	return md5.update(userid).digest('hex');
 } 

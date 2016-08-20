@@ -221,8 +221,29 @@ app_server.post('/deleteUser',function(req, res){
 	});
 });
 
-app_server.post('/updatePassword',function(req, res){
-	res.send('updatePassword');
+//更新密碼
+//格式:token,userid,old_password,new_password
+app_server.post('/updatePasswords',function(req, res){
+	var logger = common.getLogger('/updatePasswords');
+	
+	logger('收到資料:'+JSON.stringify(req.body));
+	//檢查token
+	UserManager.checkToken(req.body.data.token)
+	.then(function(result){
+		//token有效
+		UserManager.updatePasswords(req.body.data.userid,req.body.data.old_password,req.body.data.new_password)
+		.then(function(result){
+			logger('更新成功，更新後資料:');
+			console.dir(result.rows);
+			res.send(common.dataPacketGenetor("OK",{message:'密碼更新成功!',data:{userid:result.userid}}));
+		}).catch(function(error){
+			logger(error);
+			res.send(common.errorGenerator(error,error));
+		});
+	}).catch(function(error){
+			logger(error);
+			res.send(common.errorGenerator(error,error));
+	});
 
 });
 
@@ -233,7 +254,7 @@ app_server.post('/updateProfile',function(req, res){
 
 app_server.post('/getUserProfile',function(req, res){
 	res.send('getUserProfile');
-
+	
 });
 
 

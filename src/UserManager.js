@@ -15,42 +15,42 @@ function UserManager(){
 	var Mongo_Client = new mongodb.MongoClient();
 	var Mongo_DB = null;
 	var Mongo_collection_user = null;
-	
+
 	var mysql_connection = null;
-	
+
 	var TokenExpiration = 0;
-	
+
 	var defaultAdminUser =['test'];
-		
-	
-	
+
+
+
 	//==初始化 mongodb
 	this.connectTokenDB = function(address,port,database){
-		
-		
+
+
 		var url = 'mongodb://'+address+':'+port+'/'+database;
 		return new Promise(function(resolve,reject){
 			Mongo_Client.connect(url, function(err, db) {
-				
+
 				if(err){
 					reject(err);
 					return;
 				};
 
-				
+
 				Mongo_DB = db;
 				Mongo_collection_user = db.collection('user');
-				
+
 				resolve(db);
-				
+
 			});
 		});
-		
+
 	}.bind(this);
 	//==初始化 mysql
-	
+
 	this.connectUserDB = function(option){
-		
+
 		mysql_connection = mysql.createConnection(option);
 		mysql_connection.connect();
 		/*var mysql_connection = mysql.createConnection({
@@ -60,7 +60,7 @@ function UserManager(){
 			database: 'usersample'
 		});*/
 	}.bind(this);
-	
+
 	//===mysql相關===
 	//包裝成Promise的mysqlQuerry
 	var mysql_promise = {
@@ -68,6 +68,7 @@ function UserManager(){
 			var logger = cm.getLogger('mysql_promise.query');
 
 			return new Promise(function(resolve,reject){
+				logger('送出query:'+query);
 				mysql_connection.query(query,function(err,rows,firlds){
 					//logger('633')
 					if (err) {
@@ -80,26 +81,33 @@ function UserManager(){
 				});
 			});
 		}
-		
+
 	};
-	
-	
+
+
 	//取得使用者資料
 	//返回{rows:rows,firlds:firlds}
 	this.getUserInfo = function(userid){
 		var logger = cm.getLogger('UserManager.getUserInfo');
-		
+
 		//return new Promise(function(resolve,reject){
-			var query = 'SELECT * FROM user WHERE userid = "'+userid+' "';
-			return mysql_promise.query(query);
-			
+			var query = 'SELECT * FROM user WHERE userid = "'+userid+'"';
+			return mysql_promise.query(query)
+			.then(function(result){
+				//console.dir(result);
+				//由於加入這個防呆會需要大量修改userServer,userManager邏輯結構，所以暫時不改
+				//照理來說應該直接回傳使用者資料並且做好防呆而不是SQL的直接返回資料
+				//if(result.rows.length == 0) return Promise.reject('無此使用者!!');
+				return result;
+			});
+
 			/* mysql_connection.query(query,function(err,rows,firlds){
 				if (err) reject(err);
 				resolve({rows:rows,firlds:firlds});
 			}); */
 		//});
 	}.bind(this);
-	
+
 	//創建使用者
 	/*data{
 	 *	userid
@@ -109,10 +117,10 @@ function UserManager(){
 	 *	}
 	 * 返回:結果
 	 */
-	
+
 	this.createUser= function(data){
 		var logger = cm.getLogger('UserManager.createUser');
-		
+
 		return new Promise(function(resolve,reject){
 			//檢查使用者是否重複
 			logger("檢查使用者是否重複");
@@ -135,30 +143,30 @@ function UserManager(){
 				}).catch(function(error){
 					reject(error);
 				});
-				
+
 				/* mysql_connection.query(query,function(err,rows,firlds){
-					if (err){ 
+					if (err){
 						reject(err)
 						return;
 					};
 					resolve({rows:rows,firlds:firlds});
 				}); */
-			
+
 			}).catch(function(error){
 				reject(error);
 			});
-			
-			
+
+
 		}.bind(this));
-		
-		
+
+
 	}
-	
-	
-	
+
+
+
 	this.deleteUser = function(userid){
 		var logger = cm.getLogger('UserManager.deleteUser');
-		
+
 		return new Promise(function(resolve,reject){
 			//檢查是否為預設使用者
 			logger('檢查是否為預設使用者');
@@ -179,11 +187,11 @@ function UserManager(){
 				reject(new Error('查無此使用者'));
 				return Promise.reject(new Error('查無此使用者'));
 			}).then(function(value){
-				
+
 				//有就送出刪除querry
 				var query = 'DELETE FROM user WHERE userid = \''+userid+'\'';
-				logger('送出刪除querry:'+query);
-				
+				logger('送出刪除query:'+query);
+
 				mysql_promise.query(query)
 				.then(function(result){
 					logger('刪除成功');
@@ -192,12 +200,12 @@ function UserManager(){
 					logger(error);
 					reject(error)
 				});
-				
+
 				//順便清除token
 				this.getUserToken(userid)
 				.then(function(result){
 					return this.deleteToken(result);
-					
+
 				}.bind(this))
 				.then(function(result){
 					logger('順便清除token完畢');
@@ -210,21 +218,78 @@ function UserManager(){
 				reject(error);
 			});
 		}.bind(this));
-		
+
 	}.bind(this);
+
+	//更新密碼
+	//返回:更新後的userinfo
+	this.updatePasswords = function(userid,old_password,new_password){
+		var logger = cm.getLogger('UserManager.updatePasswords');
+		var userid = userid;
+		logger('更新使用者['+userid+']密碼"'+old_password+'"=>"'+new_password+'"');
+		return new Promise(function(resolve,reject){
+			this.getUserInfo(userid)
+			.then(function(result){
+				if(result.rows.length==0){
+					logger('無此使用者!!');
+					reject('無此使用者!!');
+					return;
+				}
+
+
+				//檢查密碼是否一致
+				//console.dir(result);
+				if(common.comparePassword(old_password,result.rows[0].passwords,result.rows[0].userid)){
+					//密碼一致，更新密碼
+					//logger('更新使用者['+userid+']密碼"'+old_password+'"=>"'+new_password+'"');
+					query = 'UPDATE user SET passwords="'+ common.encryptPassword(new_password,userid)+'" WHERE userid= "'+userid+'"'
+					mysql_promise.query(query)
+					.then(function(result){
+						//更新成功
+						//返回新的info
+						logger('更新成功，返回新的info，');
+						this.getUserInfo(userid)
+						.then(function(result){
+							resolve(result);
+						}).catch(function(error){
+							reject(error);
+						});
+					}.bind(this)).catch(function(error){
+						reject(error);
+					});
+
+				}else{
+					reject('密碼不一致!!');
+				}
+
+			}.bind(this)).catch(function(error){
+				reject(error);
+			});
+
+
+		}.bind(this));
+
+
+
+
+	}.bind(this);
+
+
+
 	//===mysql相關結束===
-	
+
 	//設置Token有效期限
 	//預設:0 => 無期限
 	this.setTokenExpiration = function(time){
 		TokenExpiration = time;
 	}.bind(this);
-	
-	
-	//*檢查Token是否有效	
+
+
+	//*檢查Token是否有效
+	//返回:token對應的userid
 	this.checkToken= function(token){
 		var logger = cm.getLogger('UserManager.checkToken');
-		
+
 		//如果期限為0則無期限
 		if(TokenExpiration==0)return Promise.resolve(true);
 		return new Promise(function(resolve,reject){
@@ -232,26 +297,26 @@ function UserManager(){
 			.then(function(result){
 				logger("查詢結果:");
 				console.dir(result);
-				
+
 				if(result.length!=0){
-					
+
 					var tokenDate = result[0]._id.getTimestamp();
 					var currentDate = new Date();
 					var time = currentDate.getTime() - tokenDate.getTime();
 					time = Math.floor(time/1000);
-					
+
 					if( time < TokenExpiration  ){
-						
+
 						logger('Token有效');
-						resolve(true);
+						resolve(result[0].userid);
 						return;
 					}
-					
+
 					//Token失效，進行刪除
 					logger('Token失效，進行刪除');
-					
+
 					//Mongo_collection_user.deleteOne({_id:result[0]._id})
-					
+
 					this.deleteToken(result[0].token);
 					/*.then(function(_result){
 						logger('[checkToken]Token失效，已刪除 _id:'+ result[0]._id);
@@ -264,18 +329,18 @@ function UserManager(){
 					return;
 				}
 				//查無此Token
-				
+
 				reject('查無此Token');
 			}.bind(this));
 		}.bind(this));
-		
+
 	}.bind(this);
-	
+
 	//給使用者分配token
 	//如果使用者已經有錄入Token則失敗
 	this.createTokenForUser = function(userid){
 		var logger = cm.getLogger('UserManager.createTokenForUser');
-		
+
 		return new Promise(function(resolve,reject){
 			//檢查是否已經有錄入Token
 			this.getUserToken(userid)
@@ -294,14 +359,14 @@ function UserManager(){
 					resolve(token);
 				});
 			});
-			
-			
+
+
 		}.bind(this));
 	}.bind(this);
-	
+
 	this.deleteToken=function(token){
 		var logger = cm.getLogger('UserManager.deleteToken');
-		
+
 		return new Promise(function(resolve,reject){
 			Mongo_collection_user.deleteOne({token:token})
 					.then(function(result){
@@ -313,16 +378,16 @@ function UserManager(){
 						console.dir(error);
 						reject(error);
 					});
-			
-			
+
+
 		});
 	}
-	
+
 	//*取得使用者的Token
 	//返回:Promise
 	this.getUserToken= function(userid){
 		return new Promise(function(resolve,reject){
-			
+
 			var result = Mongo_collection_user.find({userid:userid}).toArray();
 			result.then(function(result){
 				if(result.length!=0){
@@ -330,12 +395,14 @@ function UserManager(){
 				}
 				reject("沒有Token");
 			});
-			
-			
+
+
 		});
-		
+
 	}.bind(this);
-	
-	
-	
+
+	//取得token
+
+
+
 }
