@@ -87,6 +87,7 @@ function UserManager(){
 
 	//取得使用者資料
 	//返回{rows:rows,firlds:firlds}
+	um.NO_SUCH_USER_ERROR='無此使用者';
 	this.getUserInfo = function(userid){
 		var logger = cm.getLogger('UserManager.getUserInfo');
 
@@ -97,8 +98,8 @@ function UserManager(){
 				//console.dir(result);
 				//由於加入這個防呆會需要大量修改userServer,userManager邏輯結構，所以暫時不改
 				//照理來說應該直接回傳使用者資料並且做好防呆而不是SQL的直接返回資料
-				//if(result.rows.length == 0) return Promise.reject('無此使用者!!');
-				return result;
+				if(result.rows.length == 0) return Promise.reject(um.NO_SUCH_USER_ERROR);
+				return result.rows[0];
 			});
 
 			/* mysql_connection.query(query,function(err,rows,firlds){
@@ -128,21 +129,12 @@ function UserManager(){
 			.then(function(result){
 				//logger('使用者查詢結果:');
 				//console.dir(result);
-				if(result.rows.length!=0){
+				//if(result.rows.length!=0){
 					logger("已經有此使用者!");
 					reject('已經有此使用者!');
 					return;
-				}
-				//確定無重複使用者，進行添加
-				logger("確定無重複使用者，進行添加");
-				data.passwords = common.encryptPassword(data.passwords,data.userid);
-				var query = 'INSERT INTO user (userid,passwords,name,age) VALUES (\''+data.userid+'\',\''+data.passwords+'\',\''+data.name+'\',\''+data.age+'\')';
-				mysql_promise.query(query)
-				.then(function(result){
-					resolve(result);
-				}).catch(function(error){
-					reject(error);
-				});
+				// }
+
 
 				/* mysql_connection.query(query,function(err,rows,firlds){
 					if (err){
@@ -153,6 +145,19 @@ function UserManager(){
 				}); */
 
 			}).catch(function(error){
+				//確定無重複使用者，進行添加
+				if(error==um.NO_SUCH_USER_ERROR){
+					logger("確定無重複使用者，進行添加");
+					data.passwords = common.encryptPassword(data.passwords,data.userid);
+					var query = 'INSERT INTO user (userid,passwords,name,age) VALUES (\''+data.userid+'\',\''+data.passwords+'\',\''+data.name+'\',\''+data.age+'\')';
+					mysql_promise.query(query)
+					.then(function(result){
+						resolve(result);
+					}).catch(function(error){
+						reject(error);
+					});
+					return;
+				}
 				reject(error);
 			});
 
@@ -178,15 +183,19 @@ function UserManager(){
 			//檢查是否有此使用者
 			this.getUserInfo(userid)
 			.then(function(result){
-				if(result.rows.length!=0){
+				//if(result.rows.length!=0){
 					logger('有此使用者!');
-					console.dir(result.rows);
+					console.dir(result);
 					return userid;
-				}
+				//}
 				//查無此使用者
-				reject(new Error('查無此使用者'));
-				return Promise.reject(new Error('查無此使用者'));
-			}).then(function(value){
+				//reject(new Error('查無此使用者'));
+				//return Promise.reject(new Error('查無此使用者'));
+			})
+			.catch(function(error){
+				reject(error);
+			})
+			.then(function(value){
 
 				//有就送出刪除querry
 				var query = 'DELETE FROM user WHERE userid = \''+userid+'\'';
@@ -230,16 +239,16 @@ function UserManager(){
 		return new Promise(function(resolve,reject){
 			this.getUserInfo(userid)
 			.then(function(result){
-				if(result.rows.length==0){
-					logger('無此使用者!!');
-					reject('無此使用者!!');
-					return;
-				}
+				// if(result.rows.length==0){
+				// 	logger('無此使用者!!');
+				// 	reject('無此使用者!!');
+				// 	return;
+				// }
 
 
 				//檢查密碼是否一致
 				//console.dir(result);
-				if(common.comparePassword(old_password,result.rows[0].passwords,result.rows[0].userid)){
+				if(common.comparePassword(old_password,result.passwords,result.userid)){
 					//密碼一致，更新密碼
 					//logger('更新使用者['+userid+']密碼"'+old_password+'"=>"'+new_password+'"');
 					query = 'UPDATE user SET passwords="'+ common.encryptPassword(new_password,userid)+'" WHERE userid= "'+userid+'"'
@@ -274,7 +283,12 @@ function UserManager(){
 
 	}.bind(this);
 
-
+	//更新使用者資料
+	this.updateUserInfo = function(userid,data){
+		return new Promise(function(resolve,reject){
+			//檢測使用者是否存在
+		});
+	}.bind(this);
 
 	//===mysql相關結束===
 
@@ -313,20 +327,24 @@ function UserManager(){
 					}
 
 					//Token失效，進行刪除
+
 					logger('Token失效，進行刪除');
 
 					//Mongo_collection_user.deleteOne({_id:result[0]._id})
 
-					this.deleteToken(result[0].token);
-					/*.then(function(_result){
-						logger('[checkToken]Token失效，已刪除 _id:'+ result[0]._id);
+
+					this.deleteToken(result[0].token)
+					.then(function(_result){
+						//logger('[checkToken]Token失效，已刪除 _id:'+ result[0]._id);
 						//console.dir(result);
+						reject('Token失效');
 					}).catch(function(error){
-						logger('[checkToken]Token失效，刪除失敗:');
-						console.dir(error);
-					});*/
-					reject('Token失效');
-					return;
+						//logger('[checkToken]Token失效，刪除失敗:');
+						//console.dir(error);
+						reject(error);
+					});
+
+					//return;
 				}
 				//查無此Token
 

@@ -6,7 +6,7 @@ var UM = require ('./UserManager');
 var mysql_connect_config = {
     host: '127.0.0.1',
     user: 'root',
-    password: '',
+    password: 'test',
     database: 'usersample'
 }
 
@@ -18,14 +18,14 @@ var mongodb_connect_config = {
 
 var config = {
 	//Token有效時長(秒)
-	TokenExpiration:10
+	TokenExpiration:10,
+	port:3000
 }
 
 UserManager = UM.UserManager();
 
 //==初始化 UserDB(mysql)
 UserManager.connectUserDB(mysql_connect_config);
-
 //==初始化 TokenDB(mongodb)
 UserManager.connectTokenDB(mongodb_connect_config.host,mongodb_connect_config.port,mongodb_connect_config.database)
 .then(function(db){
@@ -45,7 +45,7 @@ var app_server = express();
 app_server.use(bodyParser.json());
 
 app_server.get('/', function(req, res) {
-	
+
 	res.send('hello world');
 });
 var logger = common.getLogger("Server");
@@ -62,7 +62,7 @@ var logger = common.getLogger("Server");
 //返回:token
 app_server.post('/login',function(req, res){
 	var logger = common.getLogger('/login');
-	
+
 	logger('收到資料:'+JSON.stringify(req.body));
 	var userid = req.body.data.userid
 	var userpasswords = req.body.data.passwords
@@ -71,16 +71,16 @@ app_server.post('/login',function(req, res){
 		res.send(common.errorGenerator("帳號或密碼不能為空!!"));
 		return;
 	}
-	
+
 	//進行帳號查詢
-	
+
 	UserManager.getUserInfo(userid)
 	.then(function(result){
-		//檢查結果是否為空
-		if(result.rows.length != 0){
-			logger('密碼:'+result.rows[0].passwords)
+		//(不需要了)檢查結果是否為空
+		//if(result.rows.length != 0){
+			logger('密碼:'+result.passwords)
 			//匹配密碼是否正確
-			if(common.comparePassword(userpasswords,result.rows[0].passwords,result.rows[0].userid)){
+			if(common.comparePassword(userpasswords,result.passwords,result.userid)){
 				//登入成功
 				//檢查是否已經有錄入Token
 				UserManager.getUserToken(userid)
@@ -103,14 +103,14 @@ app_server.post('/login',function(req, res){
 							res.send(common.errorGenerator(error,'內部錯誤'));
 						});
 					});
-					
+
 				}).catch(function(error){
 					//發生錯誤
 					if(error instanceof Error){
 						logger(error);
 						return;
 					};
-					
+
 					//找不到Token，產生一個
 					UserManager.createTokenForUser(userid)
 					.then(function(value){
@@ -120,22 +120,23 @@ app_server.post('/login',function(req, res){
 						res.send(common.errorGenerator(error,'內部錯誤'));
 					});
 				});
-				
+
 			}else{
 				logger('客戶端傳來的的密碼加密後:'+common.encryptPassword(userpasswords,userid));
 				res.send(common.errorGenerator("密碼錯誤",{userid:userid}));
 			}
-		}else{
-			logger("找不到帳號")
-			res.send(common.errorGenerator("無此帳號",{userid:userid}));
-		}
-	
-		
-		
+		// }else{
+		// 	logger("找不到帳號")
+		// 	res.send(common.errorGenerator("無此帳號",{userid:userid}));
+		// }
+
+
+
 	}).catch(function(error){
 		logger(error);
+    res.send(common.errorGenerator(error));
 	});
-	
+
 
 });
 
@@ -144,7 +145,7 @@ app_server.post('/login',function(req, res){
 //返回:結果
 app_server.post('/logout',function(req, res){
 	var logger = common.getLogger('/logout');
-	
+
 	logger('收到資料:'+JSON.stringify(req.body));
 	UserManager.checkToken(req.body.data.token)
 	.then(function(result){
@@ -170,7 +171,7 @@ app_server.post('/logout',function(req, res){
 //格式:token,userid,passwords,name,age
 app_server.post('/createUser',function(req, res){
 	var logger = common.getLogger('/createUser');
-	
+
 	logger('收到資料:'+JSON.stringify(req.body));
 	//檢查token
 	UserManager.checkToken(req.body.data.token)
@@ -181,7 +182,7 @@ app_server.post('/createUser',function(req, res){
 			logger('創建成功!')
 			console.dir(result.rows);
 		res.send(common.dataPacketGenetor("OK",{message:'創建成功!',data:req.body.data}));
-			
+
 		}).catch(function(error){
 			logger(error);
 			res.send(common.errorGenerator(error,error));
@@ -190,7 +191,7 @@ app_server.post('/createUser',function(req, res){
 			logger(error);
 			res.send(common.errorGenerator(error));
 	});
-	
+
 
 });
 
@@ -198,9 +199,9 @@ app_server.post('/createUser',function(req, res){
 //格式:token,userid
 app_server.post('/deleteUser',function(req, res){
 	var logger = common.getLogger('/deleteUser');
-	
+
 	logger('收到資料:'+JSON.stringify(req.body));
-	
+
 	//檢查token
 	UserManager.checkToken(req.body.data.token)
 	.then(function(result){
@@ -225,7 +226,7 @@ app_server.post('/deleteUser',function(req, res){
 //格式:token,userid,old_password,new_password
 app_server.post('/updatePasswords',function(req, res){
 	var logger = common.getLogger('/updatePasswords');
-	
+
 	logger('收到資料:'+JSON.stringify(req.body));
 	//檢查token
 	UserManager.checkToken(req.body.data.token)
@@ -254,12 +255,12 @@ app_server.post('/updateProfile',function(req, res){
 
 app_server.post('/getUserProfile',function(req, res){
 	res.send('getUserProfile');
-	
+
 });
 
 
 
 //服務器開始
-app_server.listen(3000, function () {
+app_server.listen(config.port, function () {
   logger('Example app listening on port 3000!');
 });
