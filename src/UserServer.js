@@ -25,10 +25,17 @@ var config = {
 UserManager = UM.UserManager();
 
 //==初始化 UserDB(mysql)
-UserManager.connectUserDB(mysql_connect_config);
+UserManager.connectUserDB(mysql_connect_config)
+	.then( () => {
+		logger("成功連接至MYSQL!!");
+	})
+	.catch(error => {
+		logger('MYSQL連接失敗!!');
+		logger(error);
+	});
 //==初始化 TokenDB(mongodb)
 UserManager.connectTokenDB(mongodb_connect_config.host,mongodb_connect_config.port,mongodb_connect_config.database)
-.then(function(db){
+.then( db => {
 	logger("成功連接至MongoDB!!");
 });
 
@@ -75,7 +82,7 @@ app_server.post('/login',function(req, res){
 	//進行帳號查詢
 
 	UserManager.getUserInfo(userid)
-	.then(function(result){
+	.then(result => {
 		//(不需要了)檢查結果是否為空
 		//if(result.rows.length != 0){
 			logger('密碼:'+result.passwords)
@@ -84,19 +91,19 @@ app_server.post('/login',function(req, res){
 				//登入成功
 				//檢查是否已經有錄入Token
 				UserManager.getUserToken(userid)
-				.then(function(value){
+				.then(value => {
 					//檢查token是否過期
 					UserManager.checkToken(value)
-					.then(function(result){
+					.then(result =>{
 						//token有效
 						logger("使用者["+userid+"]已經有token了:"+value);
 						res.send(common.dataPacketGenetor("OK",{message:'登入成功',token:value}));
-					}).catch(function(error){
+					}).catch(error =>{
 						//token有效或著錯誤
 						logger('token失效或著錯誤:'+error);
 						//Token無效，重新產生一個
 						UserManager.createTokenForUser(userid)
-						.then(function(value){
+						.then(value => {
 							res.send(common.dataPacketGenetor("OK",{message:'登入成功',token:value}));
 						}).catch(function(error){
 							logger(error);
@@ -104,7 +111,7 @@ app_server.post('/login',function(req, res){
 						});
 					});
 
-				}).catch(function(error){
+				}).catch(error =>{
 					//發生錯誤
 					if(error instanceof Error){
 						logger(error);
@@ -113,9 +120,9 @@ app_server.post('/login',function(req, res){
 
 					//找不到Token，產生一個
 					UserManager.createTokenForUser(userid)
-					.then(function(value){
+					.then(value => {
 						res.send(common.dataPacketGenetor("OK",{message:'登入成功',token:value}));
-					}).catch(function(error){
+					}).catch(error => {
 						logger(error);
 						res.send(common.errorGenerator(error,'內部錯誤'));
 					});
@@ -248,14 +255,47 @@ app_server.post('/updatePasswords',function(req, res){
 
 });
 
+//更新使用者資料
+//格式:token,userid,data
 app_server.post('/updateProfile',function(req, res){
-	res.send('updateProfile');
+	var logger = common.getLogger('/updateProfile');
 
+	logger('收到資料:'+JSON.stringify(req.body));
+	//檢查token
+	UserManager.checkToken(req.body.data.token)
+		.then(function(result){
+			return UserManager.updateUserInfo(common.objClone(req.body.data.userid),common.objClone(req.body.data.data))
+
+
+
+
+		}).then(function(result){
+			res.send(common.dataPacketGenetor("OK",{message:'使用者資料更新成功!!',data:{userid:result.userid}}));
+		}).catch(function(error){
+			logger(error);
+			res.send(common.errorGenerator(error,error));
+		});
 });
 
-app_server.post('/getUserProfile',function(req, res){
-	res.send('getUserProfile');
 
+//取得使用者資料
+//格式:token,userid
+app_server.post('/getUserProfile',function(req, res){
+	var logger = common.getLogger('/getUserProfile');
+
+	logger('收到資料:'+JSON.stringify(req.body));
+	//檢查token
+	UserManager.checkToken(req.body.data.token)
+		.then(function(result){
+			return UserManager.getUserInfo(req.body.data.userid)
+
+		}).then(function(result){
+			delete result.passwords;
+			res.send(common.dataPacketGenetor("OK",{message:'取得使用者資料!!',data:result}));
+		}).catch(function(error){
+			logger(error);
+			res.send(common.errorGenerator(error,error));
+		});
 });
 
 

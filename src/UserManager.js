@@ -50,26 +50,32 @@ function UserManager(){
 	//==初始化 mysql
 
 	this.connectUserDB = function(option){
+		return new Promise(function(resolve,reject){
+			mysql_connection = mysql.createConnection(option);
+			mysql_connection.connect(function(error){
+				if(error)reject(error);
+				else resolve();
+			});
+			/*var mysql_connection = mysql.createConnection({
+			 host: '127.0.0.1',
+			 user: 'root',
+			 password: '',
+			 database: 'usersample'
+			 });*/
 
-		mysql_connection = mysql.createConnection(option);
-		mysql_connection.connect();
-		/*var mysql_connection = mysql.createConnection({
-			host: '127.0.0.1',
-			user: 'root',
-			password: '',
-			database: 'usersample'
-		});*/
+		});
+
 	}.bind(this);
 
 	//===mysql相關===
 	//包裝成Promise的mysqlQuerry
 	var mysql_promise = {
-		query:function(query){
+		query:function(query,placeholders ){
 			var logger = cm.getLogger('mysql_promise.query');
 
 			return new Promise(function(resolve,reject){
-				logger('送出query:'+query);
-				mysql_connection.query(query,function(err,rows,firlds){
+
+				function resultHandler(err,rows,firlds){
 					//logger('633')
 					if (err) {
 						//logger(err)
@@ -78,7 +84,10 @@ function UserManager(){
 					};
 					//console.dir({rows:rows,firlds:firlds});
 					resolve({rows:rows,firlds:firlds});
-				});
+				}
+				if(placeholders) var _query = mysql_connection.query(query,placeholders,resultHandler);
+				else var _query = mysql_connection.query(query,resultHandler);
+				logger('送出的query:'+_query.sql);
 			});
 		}
 
@@ -87,7 +96,7 @@ function UserManager(){
 
 	//取得使用者資料
 	//返回{rows:rows,firlds:firlds}
-	um.NO_SUCH_USER_ERROR='無此使用者';
+	um.ERROR_NO_SUCH_USER='無此使用者';
 	this.getUserInfo = function(userid){
 		var logger = cm.getLogger('UserManager.getUserInfo');
 
@@ -98,7 +107,7 @@ function UserManager(){
 				//console.dir(result);
 				//由於加入這個防呆會需要大量修改userServer,userManager邏輯結構，所以暫時不改
 				//照理來說應該直接回傳使用者資料並且做好防呆而不是SQL的直接返回資料
-				if(result.rows.length == 0) return Promise.reject(um.NO_SUCH_USER_ERROR);
+				if(result.rows.length == 0) return Promise.reject(um.ERROR_NO_SUCH_USER);
 				return result.rows[0];
 			});
 
@@ -118,7 +127,7 @@ function UserManager(){
 	 *	}
 	 * 返回:結果
 	 */
-
+	um.ERROR_DUPLICATE_USER = '已經有此使用者!!';
 	this.createUser= function(data){
 		var logger = cm.getLogger('UserManager.createUser');
 
@@ -130,8 +139,8 @@ function UserManager(){
 				//logger('使用者查詢結果:');
 				//console.dir(result);
 				//if(result.rows.length!=0){
-					logger("已經有此使用者!");
-					reject('已經有此使用者!');
+					logger(um.ERROR_DUPLICATE_USER);
+					reject(um.ERROR_DUPLICATE_USER);
 					return;
 				// }
 
@@ -146,7 +155,7 @@ function UserManager(){
 
 			}).catch(function(error){
 				//確定無重複使用者，進行添加
-				if(error==um.NO_SUCH_USER_ERROR){
+				if(error==um.ERROR_NO_SUCH_USER){
 					logger("確定無重複使用者，進行添加");
 					data.passwords = common.encryptPassword(data.passwords,data.userid);
 					var query = 'INSERT INTO user (userid,passwords,name,age) VALUES (\''+data.userid+'\',\''+data.passwords+'\',\''+data.name+'\',\''+data.age+'\')';
@@ -168,7 +177,7 @@ function UserManager(){
 	}
 
 
-
+	um.ERROR_DEFAULT_USER_CANT_DELETE = '預設使用者無法刪除!!!';
 	this.deleteUser = function(userid){
 		var logger = cm.getLogger('UserManager.deleteUser');
 
@@ -176,7 +185,7 @@ function UserManager(){
 			//檢查是否為預設使用者
 			logger('檢查是否為預設使用者');
 			if(defaultAdminUser.indexOf(userid)>=0){
-				reject(new Error('預設使用者無法刪除!!!'))
+				reject(new Error(um.ERROR_DEFAULT_USER_CANT_DELETE));
 				return ;
 			};
 			logger('非預設使用者，可以刪除');
@@ -283,11 +292,43 @@ function UserManager(){
 
 	}.bind(this);
 
+	um.ERROR_DATA_INVALID = '非法資料!!';
 	//更新使用者資料
 	this.updateUserInfo = function(userid,data){
+		var logger = cm.getLogger('UserManager.updateUserInfo');
+
 		return new Promise(function(resolve,reject){
 			//檢測使用者是否存在
-		});
+			this.getUserInfo(userid)
+				.then(function(result){
+					//檢測資料是否合法
+					for(var key in data){
+						if( key=='userid' || key=='passwords'){
+							reject(um.ERROR_DATA_INVALID);
+							return;
+						}
+					}
+					var query_data='';
+					var flag = false;
+					for(var key in data){
+						query_data += (flag?',':'')+key +'= "'+data[key]+'"';
+						if(!flag) flag = true;
+					}
+					var query = 'UPDATE user SET '+query_data+' WHERE userid = "'+userid+'"';
+					return mysql_promise.query(query);
+
+				}).then(function(result){
+					//更新成功，返回使用者更新後資料
+					return this.getUserInfo(userid);
+
+				}.bind(this)).then(function(result){
+					resolve(result);
+				}).catch(function(error){
+					logger(error);
+					reject(error);
+
+				});
+		}.bind(this));
 	}.bind(this);
 
 	//===mysql相關結束===
@@ -345,10 +386,11 @@ function UserManager(){
 					});
 
 					//return;
-				}
-				//查無此Token
+				}else {
+					//查無此Token
 
-				reject('查無此Token');
+					reject('查無此Token');
+				}
 			}.bind(this));
 		}.bind(this));
 
