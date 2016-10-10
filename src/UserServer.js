@@ -2,30 +2,12 @@
 var bodyParser = require ('body-parser')
 var common = require ('./comminFunctions');
 var UM = require ('./UserManager');
-//設定區
-var mysql_connect_config = {
-    host: '127.0.0.1',
-    user: 'root',
-    password: 'test',
-    database: 'usersample'
-}
-
-var mongodb_connect_config = {
-    host: 'localhost',
-    port: '27017',
-    database: 'usersample'
-}
-
-var config = {
-	//Token有效時長(秒)
-	TokenExpiration:10,
-	port:3000
-}
+var config = require('./config');
 
 UserManager = UM.UserManager();
 
 //==初始化 UserDB(mysql)
-UserManager.connectUserDB(mysql_connect_config)
+UserManager.connectUserDB(config.mysql_connect_config)
 	.then( () => {
 		logger("成功連接至MYSQL!!");
 	})
@@ -34,7 +16,7 @@ UserManager.connectUserDB(mysql_connect_config)
 		logger(error);
 	});
 //==初始化 TokenDB(mongodb)
-UserManager.connectTokenDB(mongodb_connect_config.host,mongodb_connect_config.port,mongodb_connect_config.database)
+UserManager.connectTokenDB(config.mongodb_connect_config.host,config.mongodb_connect_config.port,config.mongodb_connect_config.database)
 .then( db => {
 	logger("成功連接至MongoDB!!");
 });
@@ -46,7 +28,7 @@ var express = require('express');
 //====主程式開始====
 //服務器配置
 //Token有效時長(秒)
-UserManager.setTokenExpiration(config.TokenExpiration);
+UserManager.setTokenExpiration(config.server.TokenExpiration);
 
 var app_server = express();
 app_server.use(bodyParser.json());
@@ -301,6 +283,6 @@ app_server.post('/getUserProfile',function(req, res){
 
 
 //服務器開始
-app_server.listen(config.port, function () {
+app_server.listen(config.server.port, function () {
   logger('Example app listening on port 3000!');
 });
