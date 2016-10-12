@@ -1,14 +1,16 @@
 {
-	"name":"UserRegisteApiSample",
-	"version":"0.0.1",
-	"dependencies":{
-		"express":"4.14.0",
-		"mysql":"2.11.1",
-		"http":"0.0.0",
-		"json":"9.0.4",
-		"body-parser":"1.15.2",
-		"crypto":"0.0.3",
-		"node-uuid":"1.4.7",
-		"mongodb":"2.2.5"
-	}
+  "name": "UserRegisteApiSample",
+  "version": "0.0.1",
+  "dependencies": {
+    "body-parser": "1.15.2",
+    "co": "^4.6.0",
+    "crypto": "0.0.3",
+    "express": "4.14.0",
+    "http": "0.0.0",
+    "json": "9.0.4",
+    "mongodb": "2.2.5",
+    "mysql": "2.11.1",
+    "node-uuid": "1.4.7",
+    "prompt-promise": "^1.0.3"
+  }
 }

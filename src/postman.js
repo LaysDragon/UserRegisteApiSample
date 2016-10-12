@@ -1,10 +1,13 @@
+var co = require('co');
+var prompt = require('prompt-promise');
 var http = require('http');
 var common = require ('./comminFunctions');
-//var readline = require('readline')
-
 
 var logger = common.getLogger('Client');
+var config = require('./config');
 
+
+//post函數
 function post(data,host,pathurl,port){
 	var logger = common.getLogger('post函式');
 	var options = {
@@ -38,117 +41,178 @@ function post(data,host,pathurl,port){
   
 }
 
+//二次包裝
 function simple_post(data,service){
-	return post(common.dataPacketGenetor("OK",data),'127.0.0.1',service,3000);
+	return post(common.dataPacketGenetor("OK",data),config.client.serverIP,service,config.client.port);
 }
 
-//測試開始
+//運行時的使用者資料
+var User = {
+	userid:"",
+	passwords:"",
+	token:""
+};
 
-//login
+//選項物件
+function Option(_title,gen){
+	this.title = _title;
+	this.gen = gen;
+}
 
-var loginData={};
-loginData.userid="test";
-loginData.passwords="test";
-
-var token;
-//看要測試什麼就把不要測試的註解掉
-
-
-//登入
-simple_post(loginData,'/login')
-.then(function(result){
-	logger('登入 返回結果: ' + result);
-	token = JSON.parse(result).data.token;
-
-	//登出
-	//return simple_post({token:token},'/logout');
-})
-.then(function(result){
-	logger('登出 返回結果: ' + result);
-	
-	//創造使用者
-	return simple_post({token:token,userid:'laysDragon-2',passwords:'233',name:'2233ssdsis a person',age:20},'/createUser');
-})
-.then(function(result){
-	logger('創造使用者 返回結果: ' + result);
-	
-	//刪除使用者
-	//return simple_post({token:token,userid:'laysDragon-2'},'/deleteUser');
-})
-.then(function(result){
-	logger('刪除使用者 返回結果: ' + result);
-	
-	//密碼更新
-	//return simple_post({token:token,userid:'laysDragon-2',old_password:'233',new_password:'test'},'/updatePasswords');
-	
-})
-.then(function(result){
-	logger('密碼更新 返回結果: ' + result);
-
-	//使用者資料更新
-	return simple_post({token:token,userid:'test',data:{name:'Etherandir',age:'233'}},'/updateProfile');
-
-}).then(function(result){
-	logger('使用者資料更新 返回結果: ' + result);
-
-	//取得使用者資料
-	return simple_post({token:token,userid:'test'},'/getUserProfile');
-
-}).then(function(result){
-	logger('取得使用者資料 返回結果: ' + result)
-
-
-})
-
-//錯誤總捕捉
-.catch(function(error){
-	logger('錯誤:'+error);
+var option_printMenu = new Option("顯示主選單",function * (){
+	console.log("========選單========");
+	for(var key in Options){
+		console.log(key+"."+Options[key].title);
+	}
+	console.log("====[e to EXIT]=====");
 });
 
 
 
-/* var stdin = process.openStdin();
+var option_login = new Option("登入",function * (){
+	User.userid = yield prompt("請輸入userid:");
+	User.passwords = yield prompt("請輸入passwords:");
+	var result = yield simple_post({userid:User.userid,passwords:User.passwords},'/login');
 
-var menu = {
-	print:function menu(){
-		console.log('選項:');
-		console.log('1.login');
-		console.log('2.logout');
-		console.log('3.createUser');
-		console.log('4.deleteUser');
-	},
-	options:[
-		function(input){
-			simple_post(loginData,'/login')
-			.then(function(result){
-				logger('返回結果: ' + result)
-				token = JSON.parse(result).data.token;
+	result = JSON.parse(result);
+	User.token = result.data.token;
+	logger(`
+	登入 返回結果:
+		state:${result.state}
+		message:${result.data.message}
+		用戶token:${result.data.token}
+	`.trim());
+});
 
-				//登出
-				//return simple_post({token:token},'/logout');
-			})
-		},
-		function(input){
-			
-		},
-		function(input){
-			
-		},
-		function(input){
-			
-		},
-	]
-}
+var option_logout = new Option("登出",function * (){
+	var result = yield simple_post({token:User.token},'/logout');
+	User.token = "";
 
-stdin.addListener("data", function(input) {
-    // note:  d is an object, and when converted to a string it will
-    // end with a linefeed.  so we (rather crudely) account for that  
-    // with toString() and then trim() 
-    console.log("you entered: [" + 
-        d.toString().trim() + "]");
-		
-		input
- }); */
+	result = JSON.parse(result);
+	logger(`
+	登出 返回結果:
+		state:${result.state}
+		message:${result.data.message}
+	`.trim());
+});
+
+var option_createUser = new Option("創造新用戶",function * (){
+	new_user={};
+	new_user.userid = yield prompt("請輸入 新用戶 userid:");
+	new_user.passwords = yield prompt("請輸入 新用戶 passwords:");
+	new_user.name = yield prompt("請輸入 新用戶 name:");
+	new_user.age = yield prompt("請輸入 新用戶 age:");
+	var result = yield simple_post({token:User.token,userid:new_user.userid,passwords:new_user.passwords,name:new_user.name,age:new_user.age},'/createUser');
+	logger('創造新用戶 返回結果: ' + result);
+
+	result = JSON.parse(result);
+	logger(`
+	創造新用戶 返回結果:
+		state:${result.state}
+		message:${result.data.message}
+		用戶id:${result.state=="OK"?result.data.data.userid:undefined}
+		用戶name:${result.state=="OK"?result.data.data.name:undefined}
+		用戶age:${result.state=="OK"?result.data.data.age:undefined}
+	`.trim());
+});
+
+var option_deleteUser = new Option("刪除用戶",function * (){
+	delete_userid = yield prompt("請輸入要刪除的用戶:");
+	var result = yield simple_post({token:User.token,userid:delete_userid},'/deleteUser');
+
+	result = JSON.parse(result);
+	logger(`
+	刪除用戶 返回結果:
+		state:${result.state}
+		message:${result.data.message}
+		被刪除的 用戶id:${result.state=="OK"?result.data.data.userid:undefined}
+	`.trim());
+});
+
+var option_updatePasswords = new Option("更新密碼",function * (){
+	var old_password = yield prompt("請輸入舊密碼:");
+	var new_password = yield prompt("請輸入新密碼:");
+	var result = yield simple_post({token:User.token,userid:User.userid,old_password:old_password,new_password:new_password},'/updatePasswords');
+
+
+	result = JSON.parse(result);
+	logger(`
+	更新密碼 返回結果:
+		state:${result.state}
+		message:${result.data.message}
+		被更新的 用戶id:${result.state=="OK"?result.data.data.userid:undefined}
+	`.trim());
+});
+
+var option_updateProfile = new Option("更新用戶資料",function * (){
+	data  = {};
+	data.name = yield prompt("請輸入 新名字:");
+	data.age = yield prompt("請輸入 新年齡:");
+	var result = yield simple_post({token:User.token,userid:User.userid,data:{name:data.name,age:data.age}},'/updateProfile');
+
+	result = JSON.parse(result);
+	logger(`
+	更新用戶資料 返回結果:
+		state:${result.state}
+		message:${result.data.message}
+		被更新的 用戶id:${result.state=="OK"?result.data.data.userid:undefined}
+	`.trim());
+
+});
+
+var option_getUserProfile = new Option("取得用戶資料",function * (){
+	var result = yield simple_post({token:User.token,userid:User.userid},'/getUserProfile');
+
+	result = JSON.parse(result);
+	logger(`
+	取得用戶資料 返回結果:
+		state:${result.state}
+		message:${result.data.message}
+		用戶id:${result.state=="OK"?result.data.data.userid:undefined}
+		用戶name:${result.state=="OK"?result.data.data.name:undefined}
+		用戶age:${result.state=="OK"?result.data.data.age:undefined}
+	`.trim());
+});
+
+var Options = [
+	option_printMenu,
+	option_login,
+	option_logout,
+	option_createUser,
+	option_deleteUser,
+	option_updatePasswords,
+	option_updateProfile,
+	option_getUserProfile
+];
+
+
+/*
+var option_sample = new Option("",function * (){
+
+});
+*/
+
+
+
+co(function * (){
+	try {
+		yield* Options[0].gen();
+		while (true) {
+			var select = yield prompt("請輸入選項:");
+			if(select == 'e') break;
+			if(isNaN(parseInt(select))){
+				console.log("請輸入有效的選項!");
+				continue;
+			}
+			yield* Options[parseInt(select)].gen();
+		}
+	}catch(ex){
+		console.log(ex)
+	}
+
+
+});
+
 
 
 
