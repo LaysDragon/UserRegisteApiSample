@@ -1,6 +1,7 @@
 /**
  * Created by LaysDragon on 2016/10/10.
  */
+
 cinfig = exports;
 //設定區
 cinfig.mysql_connect_config = {

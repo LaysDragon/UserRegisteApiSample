@@ -170,7 +170,10 @@ app_server.post('/createUser',function(req, res){
 		.then(function(result){
 			logger('創建成功!')
 			console.dir(result.rows);
-		res.send(common.dataPacketGenetor("OK",{message:'創建成功!',data:req.body.data}));
+			data = common.objClone(req.body.data);
+			delete data.passwords;
+			delete data.token;
+			res.send(common.dataPacketGenetor("OK",{message:'創建成功!',data:data}));
 
 		}).catch(function(error){
 			logger(error);
