@@ -144,15 +144,16 @@ app_server.post('/logout',function(req, res){
 			res.send(common.dataPacketGenetor("OK",{message:'登出成功'}));
 		});
 	}).catch(function(error){
+		logger(error);
 		if(error=='查無此Token')
-			res.send(common.errorGenerator(error,{token:token}));
+			res.send(common.errorGenerator(error,{token:req.body.data.token}));
 		if(error=='Token失效'){
-			UserManager.deleteToken(req.data.token)
-			.then(function(){
-				logger('登出成功');
-				res.send(common.dataPacketGenetor("OK",{message:'登出成功'}));
-			});
+			logger('登出成功');
+			res.send(common.dataPacketGenetor("OK",{message:'登出成功'}));
 		}
+	}).catch(function(error){
+		logger(error);
+		res.send(common.errorGenerator(error,error));
 	});
 });
 
